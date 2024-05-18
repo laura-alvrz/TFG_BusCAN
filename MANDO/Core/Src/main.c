@@ -42,6 +42,8 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan1;
 
+TIM_HandleTypeDef htim6;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -50,6 +52,7 @@ CAN_HandleTypeDef hcan1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN1_Init(void);
+static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -91,6 +94,18 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 	}
 }
 
+// Temporizador del heartbeat
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim->Instance==TIM6){
+		HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_12); // Va ha hacer toggle cada segundo (porque: 1/(timer/(prescaler*period)) = 1/(84M/(42k*2k)) = 1s)
+		TxHeader.DLC = 2; //Data length (envio 2 bytes)
+		TxHeader.StdId = 0x558; //ID (identificador del enviador)
+		TxData[0] = 200; //ms delay
+		TxData[1] = 4; //loop rep
+
+		HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox); //Enviar el mensaje
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -122,6 +137,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_CAN1_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   	 HAL_CAN_Start(&hcan1);
 
@@ -132,6 +148,8 @@ int main(void)
      TxHeader.IDE = CAN_ID_STD;
      TxHeader.RTR = CAN_RTR_DATA;
      TxHeader.StdId = 0x558; //ID (identificador del enviador)
+
+     HAL_TIM_Base_Start_IT(&htim6);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,10 +161,10 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  //Estas 4 lineas para comprobar que funciona el bus - mensajes continuos
-//	  TxData[0] = 100; //ms delay
-//	  TxData[1] = 8; //loop rep
-//	  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
-//	  HAL_Delay(1000);
+	  TxData[0] = 100; //ms delay
+	  TxData[1] = 8; //loop rep
+	  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	  HAL_Delay(1000);
 
 	  if (datacheck){
 	  		  //blink the LED
@@ -253,6 +271,44 @@ static void MX_CAN1_Init(void)
         HAL_CAN_ConfigFilter(&hcan1, &canfilterconfig);
 
   /* USER CODE END CAN1_Init 2 */
+
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 42000;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 2000;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 
