@@ -42,8 +42,6 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan1;
 
-TIM_HandleTypeDef htim6;
-
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -52,7 +50,6 @@ TIM_HandleTypeDef htim6;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN1_Init(void);
-static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -67,35 +64,128 @@ uint8_t RxData[8];
 
 uint32_t TxMailbox;
 
-int datacheck = 0;
+uint8_t datacheck = 0;
+uint8_t mapaACT = 1;
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton gris se asigna esos valores a las variables
-		TxData[0] = 100; //ms delay
-		TxData[1] = 10; //loop rep
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
+    TxHeader.DLC = 1; //Data length (envio 2 bytes)
+    TxHeader.IDE = CAN_ID_STD;
+    TxHeader.RTR = CAN_RTR_DATA;
+    TxHeader.StdId = 0x558; //ID (identificador del enviador)
 
-		HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+    switch (mapaACT){
+    case 1:
+    	TxData[0] = 0x01;
+    	break;
+    case 2:
+    	TxData[0] = 0x02;
+    	break;
+    case 3:
+    	TxData[0] = 0x04;
+    	break;
+    case 4:
+    	TxData[0] = 0x08;
+    	break;
+    case 5:
+    	TxData[0] = 0x10;
+    	break;
+    }
+
+	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+}//<-- falta traction y launch control
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Cambio de mapa activo segun el botón que se pulse
+	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton gris se sube de mapa
+		if (mapaACT < 5){
+			mapaACT++;
+		} else {
+			mapaACT = 1;
+		}
 	}
 
-	if (GPIO_Pin == GPIO_PIN_2){ //Al pulsar el boton amarillo se asigna esos valores a las variables
-		TxData[0] = 200; //ms delay
-		TxData[1] = 16; //loop rep
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-
-		HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	if (GPIO_Pin == GPIO_PIN_2){ //Al pulsar el boton amarillo se baja de mapa
+		if (mapaACT > 1 ){
+			mapaACT--;
+		} else {
+			mapaACT = 5;
+		}
 	}
+	SEND_MESSAGE();
+} //<-- falta debouncer y traction y launch control
+
+void RECEIVE_MESSAGE(){
+	switch (RxData[0]){
+	    case 0x81:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	break;
+	    case 0x82:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	break;
+	    case 0x84:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	break;
+	    case 0x88:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	break;
+	    case 0x90:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	break;
+	}
+
+	switch (RxData[1]){
+	    case 0x80:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	break;
+	    case 0x81:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 0);
+	    	break;
+	    case 0x82:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	break;
+	    case 0x83:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	break;
+	}
+
+
 }
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus
+
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
 	if (RxHeader.DLC == 2){
-		datacheck = 1;
+		RECEIVE_MESSAGE();
+
 	}
 }
 
 // Temporizador del heartbeat
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+/*void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim->Instance==TIM6){
 		HAL_GPIO_TogglePin(GPIOD,GPIO_PIN_12); // Va ha hacer toggle cada segundo (porque: 1/(timer/(prescaler*period)) = 1/(84M/(42k*2k)) = 1s)
 		TxHeader.DLC = 2; //Data length (envio 2 bytes)
@@ -106,6 +196,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 		HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox); //Enviar el mensaje
 	}
 }
+*/
 /* USER CODE END 0 */
 
 /**
@@ -137,19 +228,15 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_CAN1_Init();
-  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   	 HAL_CAN_Start(&hcan1);
 
      //Activar la notificacion
      HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-     TxHeader.DLC = 2; //Data length (envio 2 bytes)
-     TxHeader.IDE = CAN_ID_STD;
-     TxHeader.RTR = CAN_RTR_DATA;
-     TxHeader.StdId = 0x558; //ID (identificador del enviador)
+     HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1);
 
-     HAL_TIM_Base_Start_IT(&htim6);
+//     HAL_TIM_Base_Start_IT(&htim6);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -161,19 +248,13 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  //Estas 4 lineas para comprobar que funciona el bus - mensajes continuos
-	  TxData[0] = 100; //ms delay
-	  TxData[1] = 8; //loop rep
-	  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
-	  HAL_Delay(1000);
+//	  TxData[0] = 100; //ms delay
+//	  TxData[1] = 8; //loop rep
+//	  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+//	  HAL_Delay(1000);
 
-	  if (datacheck){
-	  		  //blink the LED
-	  		  for (int i = 0; i <RxData[1]; i++){
-	  			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-	  			  HAL_Delay(RxData[0]);
-	  		  }
-	  		  datacheck = 0;
-	  	  }
+
+
   }
   /* USER CODE END 3 */
 }
@@ -254,6 +335,7 @@ static void MX_CAN1_Init(void)
   {
     Error_Handler();
   }
+
   /* USER CODE BEGIN CAN1_Init 2 */
   CAN_FilterTypeDef canfilterconfig;
 
@@ -271,44 +353,6 @@ static void MX_CAN1_Init(void)
         HAL_CAN_ConfigFilter(&hcan1, &canfilterconfig);
 
   /* USER CODE END CAN1_Init 2 */
-
-}
-
-/**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 42000;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 2000;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
-
-  /* USER CODE END TIM6_Init 2 */
 
 }
 

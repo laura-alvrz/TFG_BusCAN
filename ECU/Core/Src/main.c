@@ -64,14 +64,132 @@ uint8_t RxData[8];
 
 uint32_t TxMailbox;
 
-int datacheck = 0;
+uint8_t datacheck = 0;
 
-void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){
+uint8_t mapaACT = 1;
+uint8_t TC = 0; //Traction control
+uint8_t LC = 0; //Launch control
+
+void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
+	 TxHeader.DLC = 2; //Data length
+	 TxHeader.IDE = CAN_ID_STD;
+	 TxHeader.RTR = CAN_RTR_DATA;
+	 TxHeader.StdId = 0x103; //ID
+
+    switch (mapaACT){
+    case 1:
+    	TxData[0] = 0x81;
+    	break;
+    case 2:
+    	TxData[0] = 0x82;
+    	break;
+    case 3:
+    	TxData[0] = 0x84;
+    	break;
+    case 4:
+    	TxData[0] = 0x88;
+    	break;
+    case 5:
+    	TxData[0] = 0x90;
+    	break;
+    }
+
+
+    if (TC == 0 && LC == 0){
+    	TxData[1] = 0x80;
+    } else if (TC == 1 && LC == 0){
+    	TxData[1] = 0x81;
+    } else if (TC == 0 && LC == 1){
+        TxData[1] = 0x82;
+    } else if (TC == 1 && LC == 1){
+    	TxData[1] = 0x83;
+    }
+
+	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+}//<-- falta traction y launch control
+
+void RECEIVE_MESSAGE(){
+	switch (RxData[0]){
+	    case 0x01:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	mapaACT = 1;
+	    	break;
+	    case 0x02:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	mapaACT = 2;
+	    	break;
+	    case 0x04:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	mapaACT = 3;
+	    	break;
+	    case 0x08:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+	    	mapaACT = 4;
+	    	break;
+	    case 0x10:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_11, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
+	    	mapaACT = 5;
+	    	break;
+	}
+
+	switch (RxData[1]){
+	    case 0x00:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 0);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	TC = 0;
+	    	LC = 0;
+	    	break;
+	    case 0x01:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 0);
+	    	TC = 1;
+	    	LC = 0;
+	    	break;
+	    case 0x02:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	TC = 0;
+	    	LC = 1;
+	    	break;
+	    case 0x03:
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8, 1);
+	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	TC = 1;
+	    	LC = 1;
+	    	break;
+	}
+	SEND_MESSAGE();
+}
+
+
+void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, RxData);
 	if (RxHeader.DLC == 2){
-		datacheck = 1;
+		RECEIVE_MESSAGE();
 	}
 }
+
+
 /* USER CODE END 0 */
 
 /**
@@ -109,13 +227,7 @@ int main(void)
       //Activar la notificacion
       HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO1_MSG_PENDING);
 
-      TxHeader.DLC = 2; //Data length
-      TxHeader.IDE = CAN_ID_STD;
-      TxHeader.RTR = CAN_RTR_DATA;
-      TxHeader.StdId = 0x103; //ID
-
-    TxData[0] = 50; //ms delay
-    TxData[1] = 20; //loop rep
+      HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1);
 
   /* USER CODE END 2 */
 
@@ -126,16 +238,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if (datacheck){
-	 	  	 //blink the LED
-	 	  	 for (int i = 0; i <RxData[1]; i++){
-	 	  	 	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-	 	  	 	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-	 	  	 	  HAL_Delay(RxData[0]);
-	 	  	 }
-	 	  	 datacheck = 0;
-	 	  	 HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
-	 	  }
+
   }
   /* USER CODE END 3 */
 }
