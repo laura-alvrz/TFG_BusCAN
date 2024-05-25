@@ -60,8 +60,8 @@ all: main-build
 main-build: MANDO_v1.elf secondary-outputs
 
 # Tool invocations
-MANDO_v1.elf MANDO_v1.map: $(OBJS) $(USER_OBJS) C:\Users\laura\Documents\mis_cosas\Universidad\TFG_MOTO\Versiones\MANDO_v1\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "MANDO_v1.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\laura\Documents\mis_cosas\Universidad\TFG_MOTO\Versiones\MANDO_v1\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="MANDO_v1.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+MANDO_v1.elf MANDO_v1.map: $(OBJS) $(USER_OBJS) C:\Users\laura\Documents\mis_cosas\Universidad\TFG_MOTO\TFG_BusCAN\Versiones\MANDO_v1\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "MANDO_v1.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\laura\Documents\mis_cosas\Universidad\TFG_MOTO\TFG_BusCAN\Versiones\MANDO_v1\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="MANDO_v1.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
