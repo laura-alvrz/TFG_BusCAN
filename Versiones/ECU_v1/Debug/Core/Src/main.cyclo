@@ -1,6 +1,10 @@
-main.c:69:6:HAL_CAN_RxFifo1MsgPendingCallback	2
-main.c:90:5:main	5
-main.c:180:6:SystemClock_Config	3
-main.c:226:13:MX_CAN1_Init	2
-main.c:277:13:MX_GPIO_Init	1
-main.c:313:6:Error_Handler	1
+main.c:76:6:SEND_MESSAGE	14
+main.c:114:6:RECEIVE_MESSAGE	10
+main.c:182:6:HAL_TIM_PeriodElapsedCallback	2
+main.c:197:6:HAL_CAN_RxFifo1MsgPendingCallback	3
+main.c:224:5:main	1
+main.c:279:6:SystemClock_Config	3
+main.c:325:13:MX_CAN1_Init	2
+main.c:376:13:MX_TIM2_Init	4
+main.c:421:13:MX_GPIO_Init	1
+main.c:468:6:Error_Handler	1

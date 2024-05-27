@@ -819,10 +819,10 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
  8000850:	2101      	movs	r1, #1
  8000852:	6878      	ldr	r0, [r7, #4]
  8000854:	f000 fdc5 	bl	80013e2 <HAL_CAN_GetRxMessage>
-	if (RxHeader.DLC == 2){
+	if (RxHeader.DLC == 1){
  8000858:	4b05      	ldr	r3, [pc, #20]	; (8000870 <HAL_CAN_RxFifo1MsgPendingCallback+0x2c>)
  800085a:	691b      	ldr	r3, [r3, #16]
- 800085c:	2b02      	cmp	r3, #2
+ 800085c:	2b01      	cmp	r3, #1
  800085e:	d101      	bne.n	8000864 <HAL_CAN_RxFifo1MsgPendingCallback+0x20>
 		RECEIVE_MESSAGE();
  8000860:	f7ff feb0 	bl	80005c4 <RECEIVE_MESSAGE>

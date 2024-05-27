@@ -1053,7 +1053,6 @@ static void MX_CAN1_Init(void)
     Error_Handler();
  8000978:	f000 f8ac 	bl	8000ad4 <Error_Handler>
   }
-
   /* USER CODE BEGIN CAN1_Init 2 */
   CAN_FilterTypeDef canfilterconfig;
 
@@ -1183,10 +1182,10 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
  8000a4a:	2200      	movs	r2, #0
- 8000a4c:	f44f 41fe 	mov.w	r1, #32512	; 0x7f00
+ 8000a4c:	f44f 417f 	mov.w	r1, #65280	; 0xff00
  8000a50:	481e      	ldr	r0, [pc, #120]	; (8000acc <MX_GPIO_Init+0x108>)
  8000a52:	f001 fad7 	bl	8002004 <HAL_GPIO_WritePin>
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
+                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PA1 PA2 PA3 */
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3;
@@ -1205,11 +1204,11 @@ static void MX_GPIO_Init(void)
  8000a6c:	f001 f92e 	bl	8001ccc <HAL_GPIO_Init>
 
   /*Configure GPIO pins : PD8 PD9 PD10 PD11
-                           PD12 PD13 PD14 */
+                           PD12 PD13 PD14 PD15 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
- 8000a70:	f44f 43fe 	mov.w	r3, #32512	; 0x7f00
+ 8000a70:	f44f 437f 	mov.w	r3, #65280	; 0xff00
  8000a74:	617b      	str	r3, [r7, #20]
-                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14;
+                          |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
  8000a76:	2301      	movs	r3, #1
  8000a78:	61bb      	str	r3, [r7, #24]

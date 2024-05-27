@@ -184,7 +184,7 @@ void RECEIVE_MESSAGE(){
 
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, RxData);
-	if (RxHeader.DLC == 2){
+	if (RxHeader.DLC == 1){
 		RECEIVE_MESSAGE();
 	}
 }
