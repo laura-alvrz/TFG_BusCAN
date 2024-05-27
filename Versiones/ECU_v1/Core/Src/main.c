@@ -73,6 +73,8 @@ uint8_t mapaACT = 1;
 uint8_t TC = 0; //Traction control
 uint8_t LC = 0; //Launch control
 
+volatile int buttonCTRL=0;
+
 void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
 	 TxHeader.DLC = 2; //Data length
 	 TxHeader.IDE = CAN_ID_STD;
@@ -160,22 +162,35 @@ void RECEIVE_MESSAGE(){
 			LC = 0;
 			break;
 		case 0x02: //LC enabled
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
-			TC = 0;
-			LC = 1;
+			if(mapaACT == 5){
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+				TC = 0;
+				LC = 0;
+			}else{
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+				TC = 0;
+				LC = 1;
+			}
 			break;
 		case 0x03: //TC y LC enabled
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
-			TC = 1;
-			LC = 1;
+			if(mapaACT == 5){
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+				TC = 1;
+				LC = 0;
+			}else{
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
+				HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+				TC = 1;
+				LC = 1;
+			}
 			break;
 	}
 	SEND_MESSAGE();
 }
 
-// Desactivar LC al pulsar el PA0
 // No activar el LC si está activo el mapa 5
 
 
@@ -201,6 +216,41 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 	}
 	if (RxHeader.StdId == 0x600){ //Heartbeat
 		HAL_TIM_Base_Start_IT(&htim2);
+	}
+}
+
+
+int debouncer(volatile int* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){ //Para usar el PA0 (se puede sustituir por potenciometro)
+	static uint8_t button_count=0;
+	static int counter=0;
+
+	if (*button_int==1){
+		if (button_count==0) {
+			counter=HAL_GetTick();
+			button_count++;
+		}
+		if (HAL_GetTick()-counter>=20){
+			counter=HAL_GetTick();
+			if (HAL_GPIO_ReadPin(GPIO_port, GPIO_number)!=1){
+				button_count=1;
+			}
+			else{
+				button_count++;
+			}
+			if (button_count==4){ //Periodo antirebotes
+				button_count=0;
+				*button_int=0;
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Es como si hubiera un actuador (se puede sustituir por potenciometro)
+	if (GPIO_Pin == GPIO_PIN_0){ //Al pulsar se desactiva el launch control
+		buttonCTRL=1;
 	}
 }
 
@@ -266,6 +316,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+	  if (buttonCTRL==1){
+		  if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_0)){
+			  LC = 0;
+			  SEND_MESSAGE();
+		  }
+	  }
 
 	 // check_CAN_error_status();
 

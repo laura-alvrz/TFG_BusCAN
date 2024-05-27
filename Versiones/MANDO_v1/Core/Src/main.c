@@ -210,18 +210,26 @@ void RECEIVE_MESSAGE(){
 	    case 0x80: //TC y LC disabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	TC = 0;
+	    	LC = 0;
 	    	break;
 	    case 0x81: //TC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+	    	TC = 1;
+	    	LC = 0;
 	    	break;
 	    case 0x82: //LC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	TC = 0;
+	    	LC = 1;
 	    	break;
 	    case 0x83: //TC y LC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
+	    	TC = 1;
+	    	LC = 1;
 	    	break;
 	}
 }
@@ -253,12 +261,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 	if(htim->Instance==TIM3){
 		//if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
 		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3)){
-			//LC = 1;
-			if (LC == 0){
-				LC = 1;
-			} else {
-				LC = 0;
-			}
+			LC = 1;
 	    	//HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_9);
 		} else {
 			if (TC == 0){
@@ -527,7 +530,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 42000;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 6000;
+  htim3.Init.Period = 3000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
