@@ -685,7 +685,7 @@ void RECEIVE_MESSAGE(){
  8000746:	701a      	strb	r2, [r3, #0]
 			break;
  8000748:	e038      	b.n	80007bc <RECEIVE_MESSAGE+0x1f8>
-		case 0x01:
+		case 0x01: //TC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
  800074a:	2201      	movs	r2, #1
  800074c:	f44f 6180 	mov.w	r1, #1024	; 0x400
@@ -706,7 +706,7 @@ void RECEIVE_MESSAGE(){
  800076c:	701a      	strb	r2, [r3, #0]
 			break;
  800076e:	e025      	b.n	80007bc <RECEIVE_MESSAGE+0x1f8>
-		case 0x02:
+		case 0x02: //LC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
  8000770:	2200      	movs	r2, #0
  8000772:	f44f 6180 	mov.w	r1, #1024	; 0x400
@@ -727,7 +727,7 @@ void RECEIVE_MESSAGE(){
  8000792:	701a      	strb	r2, [r3, #0]
 			break;
  8000794:	e012      	b.n	80007bc <RECEIVE_MESSAGE+0x1f8>
-		case 0x03:
+		case 0x03: //TC y LC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
  8000796:	2201      	movs	r2, #1
  8000798:	f44f 6180 	mov.w	r1, #1024	; 0x400
@@ -905,6 +905,7 @@ int main(void)
  80008a4:	4804      	ldr	r0, [pc, #16]	; (80008b8 <main+0x34>)
  80008a6:	f000 ff46 	bl	8001736 <HAL_CAN_ActivateNotification>
 
+    //Inicialmente esta activado el mapa 1
     HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 1);
  80008aa:	2201      	movs	r2, #1
  80008ac:	f44f 4100 	mov.w	r1, #32768	; 0x8000

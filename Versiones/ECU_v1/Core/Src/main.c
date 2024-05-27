@@ -153,19 +153,19 @@ void RECEIVE_MESSAGE(){
 			TC = 0;
 			LC = 0;
 			break;
-		case 0x01:
+		case 0x01: //TC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
 			TC = 1;
 			LC = 0;
 			break;
-		case 0x02:
+		case 0x02: //LC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
 			TC = 0;
 			LC = 1;
 			break;
-		case 0x03:
+		case 0x03: //TC y LC enabled
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
 			TC = 1;
@@ -253,6 +253,7 @@ int main(void)
     //Activar la notificacion
     HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO1_MSG_PENDING);
 
+    //Inicialmente esta activado el mapa 1
     HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 1);
 
 

@@ -43,6 +43,7 @@
 CAN_HandleTypeDef hcan1;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 
@@ -53,6 +54,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -73,6 +75,7 @@ uint8_t LC = 0; //Launch control
 
 volatile int buttonUP=0;
 volatile int buttonDOWN=0;
+volatile int buttonCTRL=0;
 
 void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
     TxHeader.DLC = 2; //Data length (envio 2 bytes)
@@ -99,14 +102,14 @@ void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
         }
 
     if (TC == 0 && LC == 0){
-        	TxData[1] = 0x00;
-        } else if (TC == 1 && LC == 0){
-        	TxData[1] = 0x01;
-        } else if (TC == 0 && LC == 1){
-            TxData[1] = 0x02;
-        } else if (TC == 1 && LC == 1){
-        	TxData[1] = 0x03;
-        }
+		TxData[1] = 0x00;
+	} else if (TC == 1 && LC == 0){ //TC enabled
+		TxData[1] = 0x01;
+	} else if (TC == 0 && LC == 1){ //LC enabled
+		TxData[1] = 0x02;
+	} else if (TC == 1 && LC == 1){ //TC y LC enabled
+		TxData[1] = 0x03;
+	}
 
     	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
     }
@@ -158,13 +161,6 @@ void MAPChange(){
 	}
 }
 
-void OPTact(){
-	//Debouncer y temporizador
-	//SEND_MESSAGE();
-}
-
-
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Cambio de mapa activo segun el botón que se pulse
 	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton amarillo se sube de mapa
 		buttonUP = 1;
@@ -174,9 +170,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Cambio de mapa activo segun el
 		buttonDOWN = 1;
 	}
 	if (GPIO_Pin == GPIO_PIN_3){ //Al pulsar el boton azul
-		//Start timer y activar algo
+		buttonCTRL = 1;
 	}
-} //<-- falta traction y launch control
+}
 
 
 
@@ -211,19 +207,19 @@ void RECEIVE_MESSAGE(){
 	}
 
 	switch (RxData[1]){
-	    case 0x80:
+	    case 0x80: //TC y LC disabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
 	    	break;
-	    case 0x81:
+	    case 0x81: //TC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
 	    	break;
-	    case 0x82:
+	    case 0x82: //LC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 0);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
 	    	break;
-	    case 0x83:
+	    case 0x83: //TC y LC enabled
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_10, 1);
 	    	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 1);
 	    	break;
@@ -253,6 +249,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 	    TxHeader.StdId = 0x600; //ID (identificador del enviador)
 
 	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	}
+	if(htim->Instance==TIM3){
+		//if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
+		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3)){
+			//LC = 1;
+			if (LC == 0){
+				LC = 1;
+			} else {
+				LC = 0;
+			}
+	    	//HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_9);
+		} else {
+			if (TC == 0){
+				TC = 1;
+			} else {
+				TC = 0;
+			}
+			//HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_10);
+		}
+		HAL_TIM_Base_Stop_IT(&htim3);
+		SEND_MESSAGE();
 	}
 }
 
@@ -298,6 +315,7 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   HAL_CAN_Start(&hcan1);
   HAL_TIM_Base_Start_IT(&htim2);
@@ -334,6 +352,12 @@ int main(void)
 
 	  if (buttonUP==1 || buttonDOWN==1){
 		  MAPChange();
+	  }
+
+	  if (buttonCTRL==1){
+		  if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
+		  	HAL_TIM_Base_Start_IT(&htim3);
+		  }
 	  }
 
   }
@@ -477,7 +501,55 @@ static void MX_TIM2_Init(void)
   }
   /* USER CODE BEGIN TIM2_Init 2 */
 
+
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 42000;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 6000;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+  // Limpiar cualquier interrupción pendiente
+  __HAL_TIM_CLEAR_FLAG(&htim3, TIM_IT_UPDATE);
+
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
@@ -502,14 +574,14 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
                           |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PA0 PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_3;
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA1 PA2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2;
+  /*Configure GPIO pins : PA1 PA2 PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -529,6 +601,9 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 
