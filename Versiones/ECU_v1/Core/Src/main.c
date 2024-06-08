@@ -40,6 +40,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+
 CAN_HandleTypeDef hcan1;
 
 TIM_HandleTypeDef htim2;
@@ -51,8 +54,10 @@ TIM_HandleTypeDef htim2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -65,7 +70,7 @@ CAN_RxHeaderTypeDef RxHeader;
 uint8_t TxData[8];
 uint8_t RxData[8];
 
-uint32_t TxMailbox;
+uint32_t TxMailbox[3];
 
 uint8_t datacheck = 0;
 uint8_t mapaACT = 1;
@@ -75,11 +80,24 @@ uint8_t LC = 0; //Launch control
 
 volatile int buttonCTRL=0;
 
+uint16_t ADC_value[1],ADC_buffer[1];
+uint32_t rpm;
+
+int valor_RPM(uint16_t valor){
+	return ADC_value[0] * 14000 / 4095;
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+	if (hadc->Instance == ADC1){
+		ADC_value[0] = ADC_buffer[0]; //potenciometro de 0 a 4095, rmp de 0 a 14000
+	}
+}
+
 void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
 	 TxHeader.DLC = 2; //Data length
 	 TxHeader.IDE = CAN_ID_STD;
 	 TxHeader.RTR = CAN_RTR_DATA;
-	 TxHeader.StdId = 0x150; //ID
+	 TxHeader.StdId = 0x181; //ID
 
     switch (mapaACT){
     case 1:
@@ -110,7 +128,7 @@ void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
     	TxData[1] = 0x83;
     }
 
-	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[0]);
 }
 
 void RECEIVE_MESSAGE(){
@@ -191,35 +209,37 @@ void RECEIVE_MESSAGE(){
 	SEND_MESSAGE();
 }
 
-// No activar el LC si está activo el mapa 5
-
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
 	if(htim->Instance==TIM2){
-	    TxHeader.DLC = 0; //Data length
+	    TxHeader.DLC = 1; //Data length
 	    TxHeader.IDE = CAN_ID_STD;
 	    TxHeader.RTR = CAN_RTR_DATA;
-	    TxHeader.StdId = 0x100; //ID (identificador del enviador)
+	    TxHeader.StdId = 0x701; //ID (identificador del enviador)
+
+	    TxData[0] = 0x01;
 
 	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_8); //Heartbeat
 
-	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	    HAL_TIM_Base_Stop_IT(&htim2);
 
 	}
 }
+
+//QUITAR EL TEMPORIZADOR
 
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, RxData);
 	if (RxHeader.DLC == 2){
 		RECEIVE_MESSAGE();
 	}
-	if (RxHeader.StdId == 0x600){ //Heartbeat
+	if (RxHeader.StdId == 0x702){ //Heartbeat
 		HAL_TIM_Base_Start_IT(&htim2);
 	}
 }
 
-
+/*
 int debouncer(volatile int* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){ //Para usar el PA0 (se puede sustituir por potenciometro)
 	static uint8_t button_count=0;
 	static int counter=0;
@@ -253,7 +273,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Es como si hubiera un actuador
 		buttonCTRL=1;
 	}
 }
-
+*/
 
 
 
@@ -295,10 +315,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_CAN1_Init();
   MX_TIM2_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   HAL_CAN_Start(&hcan1);
+
+  HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_buffer,1);
 
     //Activar la notificacion
     HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO1_MSG_PENDING);
@@ -317,13 +341,22 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  if (buttonCTRL==1){
+	  rpm = valor_RPM(ADC_value[0]);
+
+	  if (LC == 1){
+		if (rpm >= 3000){
+			LC = 0;
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_9, 0);
+			SEND_MESSAGE();
+		}
+	  }
+/*	  if (buttonCTRL==1){
 		  if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_0)){
 			  LC = 0;
 			  SEND_MESSAGE();
 		  }
 	  }
-
+*/
 	 // check_CAN_error_status();
 
   }
@@ -376,6 +409,58 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
   * @brief CAN1 Initialization Function
   * @param None
   * @retval None
@@ -397,11 +482,11 @@ static void MX_CAN1_Init(void)
   hcan1.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
-  hcan1.Init.AutoBusOff = DISABLE;
-  hcan1.Init.AutoWakeUp = DISABLE;
-  hcan1.Init.AutoRetransmission = DISABLE;
+  hcan1.Init.AutoBusOff = ENABLE;
+  hcan1.Init.AutoWakeUp = ENABLE;
+  hcan1.Init.AutoRetransmission = ENABLE;
   hcan1.Init.ReceiveFifoLocked = DISABLE;
-  hcan1.Init.TransmitFifoPriority = DISABLE;
+  hcan1.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan1) != HAL_OK)
   {
     Error_Handler();
@@ -412,9 +497,9 @@ static void MX_CAN1_Init(void)
     canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
     canfilterconfig.FilterBank = 10; //which filter bank to use from the assigned ones
     canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO1;
-    canfilterconfig.FilterIdHigh = 0x600<<5; //0110 0000 0000 // Lo que se compara con los ID entrantes
+    canfilterconfig.FilterIdHigh = 0x102<<5; //0110 0000 0000 // Lo que se compara con los ID entrantes
     canfilterconfig.FilterIdLow = 0x0000;
-    canfilterconfig.FilterMaskIdHigh = 0x600<<5; //Escribo en la posicion 5 // Solo se comparan los bit del FilterID con los ID entrantes que en el FilterMask sean 1
+    canfilterconfig.FilterMaskIdHigh = 0x102<<5; //Escribo en la posicion 5 // Solo se comparan los bit del FilterID con los ID entrantes que en el FilterMask sean 1
     canfilterconfig.FilterMaskIdLow = 0x0000;
     canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
     canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
@@ -468,6 +553,22 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 
 }
 

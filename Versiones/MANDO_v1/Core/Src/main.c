@@ -67,11 +67,13 @@ CAN_RxHeaderTypeDef RxHeader;
 uint8_t TxData[8];
 uint8_t RxData[8];
 
-uint32_t TxMailbox;
+uint32_t TxMailbox[3];
 
 uint8_t mapaACT = 1;
 uint8_t TC = 0; //Traction control
 uint8_t LC = 0; //Launch control
+
+int i = 0;
 
 volatile int buttonUP=0;
 volatile int buttonDOWN=0;
@@ -81,7 +83,7 @@ void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
     TxHeader.DLC = 2; //Data length (envio 2 bytes)
     TxHeader.IDE = CAN_ID_STD;
     TxHeader.RTR = CAN_RTR_DATA;
-    TxHeader.StdId = 0x650; //ID (identificador del enviador)
+    TxHeader.StdId = 0x182; //ID (identificador del enviador)
 
     switch (mapaACT){
         case 1:
@@ -111,7 +113,7 @@ void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
 		TxData[1] = 0x03;
 	}
 
-    	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+    	HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[0]);
     }
 
 int debouncer(volatile int* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){
@@ -234,6 +236,10 @@ void RECEIVE_MESSAGE(){
 	}
 }
 
+//PONER EN CADA SITIO QUE MENSJAE SE QUEDA ACTIVO AL FINAL
+//HACER EL DEFINE
+//PONER LAS COSAS SEGUN CANOPEN
+//CAMBIAR LOS NOMBRES DE LAS COSAS
 
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
@@ -241,7 +247,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 	if (RxHeader.DLC == 2){
 		RECEIVE_MESSAGE();
 	}
-	if (RxHeader.StdId == 0x100){
+	if (RxHeader.StdId == 0x701){
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_8); //Heartbeat
 		//Activar las interrupciones
 			HAL_NVIC_EnableIRQ(EXTI1_IRQn);
@@ -251,12 +257,19 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 	if(htim->Instance==TIM2){
-	    TxHeader.DLC = 0; //Data length
+	    TxHeader.DLC = 1; //Data length
 	    TxHeader.IDE = CAN_ID_STD;
 	    TxHeader.RTR = CAN_RTR_DATA;
-	    TxHeader.StdId = 0x600; //ID (identificador del enviador)
+	    TxHeader.StdId = 0x702; //ID (identificador del enviador)
 
-	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+	    if(i == 0){
+	    	TxData[0] = 0x80;
+	    	i ++;
+	    } else {
+	    	TxData[0] = 0x01;
+	    }
+
+	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	}
 	if(htim->Instance==TIM3){
 		//if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
@@ -434,11 +447,11 @@ static void MX_CAN1_Init(void)
   hcan1.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
-  hcan1.Init.AutoBusOff = DISABLE;
-  hcan1.Init.AutoWakeUp = DISABLE;
-  hcan1.Init.AutoRetransmission = DISABLE;
+  hcan1.Init.AutoBusOff = ENABLE;
+  hcan1.Init.AutoWakeUp = ENABLE;
+  hcan1.Init.AutoRetransmission = ENABLE;
   hcan1.Init.ReceiveFifoLocked = DISABLE;
-  hcan1.Init.TransmitFifoPriority = DISABLE;
+  hcan1.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan1) != HAL_OK)
   {
     Error_Handler();
@@ -449,9 +462,9 @@ static void MX_CAN1_Init(void)
       canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
       canfilterconfig.FilterBank = 18; //which filter bank to use from the assigned ones
       canfilterconfig.FilterFIFOAssignment = CAN_RX_FIFO0; //Para guardar el mensaje entrante
-      canfilterconfig.FilterIdHigh = 0x100<<5;
+      canfilterconfig.FilterIdHigh = 0x101<<5;
       canfilterconfig.FilterIdLow = 0x0000;
-      canfilterconfig.FilterMaskIdHigh = 0x100<<5; //Escribo en la posicion 5
+      canfilterconfig.FilterMaskIdHigh = 0x101<<5; //Escribo en la posicion 5
       canfilterconfig.FilterMaskIdLow = 0x0000;
       canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
       canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
@@ -482,9 +495,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 42000;
+  htim2.Init.Prescaler = 41999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 2000;
+  htim2.Init.Period = 1999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -528,9 +541,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 42000;
+  htim3.Init.Prescaler = 41999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 3000;
+  htim3.Init.Period = 2999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -576,12 +589,6 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
                           |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA1 PA2 PA3 */
   GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3;
