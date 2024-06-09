@@ -21,6 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "i2c-lcd.h"
+#include <string.h>
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -42,8 +45,11 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan1;
 
+I2C_HandleTypeDef hi2c1;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 
@@ -55,6 +61,8 @@ static void MX_GPIO_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_I2C1_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -72,12 +80,20 @@ uint32_t TxMailbox[3];
 uint8_t mapaACT = 1;
 uint8_t TC = 0; //Traction control
 uint8_t LC = 0; //Launch control
+uint16_t rpm = 0; //revoluciones
 
 int i = 0;
 
 volatile int buttonUP=0;
 volatile int buttonDOWN=0;
 volatile int buttonCTRL=0;
+
+char t_pantalla[33];
+char t_mapa[2];
+char t_rpm[6];
+
+uint8_t highByte;
+uint8_t lowByte;
 
 void SEND_MESSAGE(){ //Mandar una secuencia de datos u otra segun el mapa activo
     TxHeader.DLC = 2; //Data length (envio 2 bytes)
@@ -241,10 +257,13 @@ void RECEIVE_MESSAGE(){
 //PONER LAS COSAS SEGUN CANOPEN
 //CAMBIAR LOS NOMBRES DE LAS COSAS
 
+uint16_t combineBytes(uint8_t highByte, uint8_t lowByte) {
+    return ((uint16_t)highByte << 8) | lowByte; //Desplaza los 2 primeros bytes a su posición correcta y añade los 2 últimos bytes
+}
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
-	if (RxHeader.DLC == 2){
+	if (RxHeader.StdId == 0x181){
 		RECEIVE_MESSAGE();
 	}
 	if (RxHeader.StdId == 0x701){
@@ -252,6 +271,10 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 		//Activar las interrupciones
 			HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 			HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+	}
+	if (RxHeader.StdId == 0x381){
+		highByte = RxData[0];
+		lowByte = RxData[1];
 	}
 }
 
@@ -286,6 +309,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 		}
 		HAL_TIM_Base_Stop_IT(&htim3);
 		SEND_MESSAGE();
+	}
+	if (htim->Instance == TIM4){
+		lcd_update(t_pantalla);
 	}
 }
 
@@ -332,15 +358,19 @@ int main(void)
   MX_CAN1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_I2C1_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   HAL_CAN_Start(&hcan1);
   HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start_IT(&htim4);
+  lcd_init();
+
 
     //Activar la notificacion de que hay mensajes para recibir
     HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
 
     HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 1);
-
 
     //Al principio están desactivadas las interrrupciones de los botones
     HAL_NVIC_DisableIRQ(EXTI1_IRQn);
@@ -375,6 +405,29 @@ int main(void)
 		  	HAL_TIM_Base_Start_IT(&htim3);
 		  }
 	  }
+
+
+	  // Recombinar los bytes en un valor de 16 bits
+	  rpm = combineBytes(highByte, lowByte);
+
+	  sprintf(t_mapa, "%i", mapaACT);
+	  sprintf(t_rpm, "%u", rpm);
+	  if (TC == 1){
+		  strcpy(t_pantalla, "TC:ON ");
+	  } else {
+		  strcpy(t_pantalla, "TC:OFF");
+	  }
+	  if (LC == 1){
+		  strcat(t_pantalla, " LC:ON ");
+	  } else {
+		  strcat(t_pantalla, " LC:OFF");
+	  }
+	  strcat (t_pantalla, "   MAPA:");
+	  strcat(t_pantalla, t_mapa);
+	  strcat(t_pantalla, " RPM:");
+	  strcat(t_pantalla, t_rpm);
+	  strcat(t_pantalla, "    ");
+
 
   }
   /* USER CODE END 3 */
@@ -477,6 +530,40 @@ static void MX_CAN1_Init(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
@@ -566,6 +653,51 @@ static void MX_TIM3_Init(void)
   __HAL_TIM_CLEAR_FLAG(&htim3, TIM_IT_UPDATE);
 
   /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 41999;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
 
 }
 

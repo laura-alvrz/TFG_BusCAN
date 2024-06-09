@@ -46,6 +46,7 @@ DMA_HandleTypeDef hdma_adc1;
 CAN_HandleTypeDef hcan1;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 
@@ -58,6 +59,7 @@ static void MX_DMA_Init(void);
 static void MX_CAN1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -81,7 +83,10 @@ uint8_t LC = 0; //Launch control
 volatile int buttonCTRL=0;
 
 uint16_t ADC_value[1],ADC_buffer[1];
-uint32_t rpm;
+uint16_t rpm;
+
+uint8_t highByte;
+uint8_t lowByte;
 
 int valor_RPM(uint16_t valor){
 	return ADC_value[0] * 14000 / 4095;
@@ -209,6 +214,10 @@ void RECEIVE_MESSAGE(){
 	SEND_MESSAGE();
 }
 
+void splitValue(uint16_t value, uint8_t* highByte, uint8_t* lowByte) {
+    *highByte = (value >> 8) & 0xFF; // Byte 0 (desplazo y me quedo con los 2 primeros bytes)
+    *lowByte = value & 0xFF;         // Byte 1 (me quedo con los 2 últimos bytes)
+}
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
 	if(htim->Instance==TIM2){
@@ -223,7 +232,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
 
 	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	    HAL_TIM_Base_Stop_IT(&htim2);
+	}
 
+	if(htim->Instance==TIM3){
+		splitValue(rpm, &highByte, &lowByte);
+
+		TxHeader.DLC = 2; //Data length
+		TxHeader.IDE = CAN_ID_STD;
+		TxHeader.RTR = CAN_RTR_DATA;
+		TxHeader.StdId = 0x381; //ID (identificador del enviador)
+
+		TxData[0] = highByte;
+		TxData[1] = lowByte;
+
+		HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[2]);
 	}
 }
 
@@ -319,8 +341,10 @@ int main(void)
   MX_CAN1_Init();
   MX_TIM2_Init();
   MX_ADC1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   HAL_CAN_Start(&hcan1);
+  HAL_TIM_Base_Start_IT(&htim3);
 
   HAL_ADC_Start_DMA(&hadc1,(uint32_t*)ADC_buffer,1);
 
@@ -551,8 +575,55 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
+  // Limpiar cualquier interrupción pendiente
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_UPDATE);
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 41999;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 99;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
