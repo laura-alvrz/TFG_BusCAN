@@ -214,13 +214,13 @@ void RECEIVE_MESSAGE(){
 	SEND_MESSAGE();
 }
 
-void splitValue(uint16_t value, uint8_t* highByte, uint8_t* lowByte) {
+void splitBytes(uint16_t value, uint8_t* highByte, uint8_t* lowByte) {
     *highByte = (value >> 8) & 0xFF; // Byte 0 (desplazo y me quedo con los 2 primeros bytes)
     *lowByte = value & 0xFF;         // Byte 1 (me quedo con los 2 últimos bytes)
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
-	if(htim->Instance==TIM2){
+	/*if(htim->Instance==TIM2){
 	    TxHeader.DLC = 1; //Data length
 	    TxHeader.IDE = CAN_ID_STD;
 	    TxHeader.RTR = CAN_RTR_DATA;
@@ -232,10 +232,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
 
 	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	    HAL_TIM_Base_Stop_IT(&htim2);
-	}
+	}*/
 
 	if(htim->Instance==TIM3){
-		splitValue(rpm, &highByte, &lowByte);
+		splitBytes(rpm, &highByte, &lowByte);
 
 		TxHeader.DLC = 2; //Data length
 		TxHeader.IDE = CAN_ID_STD;
@@ -257,7 +257,17 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 		RECEIVE_MESSAGE();
 	}
 	if (RxHeader.StdId == 0x702){ //Heartbeat
-		HAL_TIM_Base_Start_IT(&htim2);
+		//HAL_TIM_Base_Start_IT(&htim2);
+	    TxHeader.DLC = 1; //Data length
+	    TxHeader.IDE = CAN_ID_STD;
+	    TxHeader.RTR = CAN_RTR_DATA;
+	    TxHeader.StdId = 0x701; //ID (identificador del enviador)
+
+	    TxData[0] = 0x01;
+
+	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_8); //Heartbeat
+
+	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	}
 }
 
@@ -664,12 +674,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
                           |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PA0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PD8 PD9 PD10 PD11
                            PD12 PD13 PD14 PD15 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
@@ -678,10 +682,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

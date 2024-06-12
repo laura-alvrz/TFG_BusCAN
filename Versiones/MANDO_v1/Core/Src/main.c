@@ -34,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define NUM_MAP 5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -162,7 +162,7 @@ int debouncer(volatile int* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_n
 
 void MAPChange(){
 	if (debouncer(&buttonUP, GPIOA, GPIO_PIN_1)){
-		if (mapaACT < 5){
+		if (mapaACT < NUM_MAP){
 			mapaACT++;
 		} else {
 			mapaACT = 1;
@@ -173,7 +173,7 @@ void MAPChange(){
 		if (mapaACT > 1 ){
 			mapaACT--;
 		} else {
-			mapaACT = 5;
+			mapaACT = NUM_MAP;
 		}
 		SEND_MESSAGE();
 	}
@@ -182,13 +182,19 @@ void MAPChange(){
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Cambio de mapa activo segun el botón que se pulse
 	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton amarillo se sube de mapa
 		buttonUP = 1;
+		buttonDOWN = 0;
+		buttonCTRL = 0;
 	}
 
 	if (GPIO_Pin == GPIO_PIN_2){ //Al pulsar el boton rojo se baja de mapa
 		buttonDOWN = 1;
+		buttonUP = 0;
+		buttonCTRL = 0;
 	}
 	if (GPIO_Pin == GPIO_PIN_3){ //Al pulsar el boton azul
 		buttonCTRL = 1;
+		buttonDOWN = 0;
+		buttonUP = 0;
 	}
 }
 
@@ -253,7 +259,6 @@ void RECEIVE_MESSAGE(){
 }
 
 //PONER EN CADA SITIO QUE MENSJAE SE QUEDA ACTIVO AL FINAL
-//HACER EL DEFINE
 //PONER LAS COSAS SEGUN CANOPEN
 //CAMBIAR LOS NOMBRES DE LAS COSAS
 
@@ -402,6 +407,9 @@ int main(void)
 
 	  if (buttonCTRL==1){
 		  if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
+				buttonUP = 0;
+				buttonDOWN = 0;
+				buttonCTRL = 0;
 		  	HAL_TIM_Base_Start_IT(&htim3);
 		  }
 	  }
@@ -677,7 +685,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 41999;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 999;
+  htim4.Init.Period = 499;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)

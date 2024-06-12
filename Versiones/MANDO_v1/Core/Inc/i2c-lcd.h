@@ -19,7 +19,7 @@ void lcd_clear (void);
 
 void lcd_init();
 void lcd_send_cmd(char cmd);
-void lcd_update(char* str);
 void lcd_send_data(char data);
 void lcd_send_string(char *str);
+void lcd_update(char* str);
 void lcd_clear(void);

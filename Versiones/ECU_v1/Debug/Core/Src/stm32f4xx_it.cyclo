@@ -7,9 +7,8 @@ stm32f4xx_it.c:148:6:SVC_Handler	1
 stm32f4xx_it.c:161:6:DebugMon_Handler	1
 stm32f4xx_it.c:174:6:PendSV_Handler	1
 stm32f4xx_it.c:187:6:SysTick_Handler	1
-stm32f4xx_it.c:208:6:EXTI0_IRQHandler	1
-stm32f4xx_it.c:222:6:ADC_IRQHandler	1
-stm32f4xx_it.c:236:6:CAN1_RX1_IRQHandler	1
-stm32f4xx_it.c:250:6:TIM2_IRQHandler	1
-stm32f4xx_it.c:264:6:TIM3_IRQHandler	1
-stm32f4xx_it.c:278:6:DMA2_Stream0_IRQHandler	1
+stm32f4xx_it.c:208:6:ADC_IRQHandler	1
+stm32f4xx_it.c:222:6:CAN1_RX1_IRQHandler	1
+stm32f4xx_it.c:236:6:TIM2_IRQHandler	1
+stm32f4xx_it.c:250:6:TIM3_IRQHandler	1
+stm32f4xx_it.c:264:6:DMA2_Stream0_IRQHandler	1
