@@ -180,13 +180,13 @@ void MAPChange(){
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Cambio de mapa activo segun el botón que se pulse
-	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton amarillo se sube de mapa
+	if (GPIO_Pin == GPIO_PIN_1){ //Al pulsar el boton rojo se sube de mapa
 		buttonUP = 1;
 		buttonDOWN = 0;
 		buttonCTRL = 0;
 	}
 
-	if (GPIO_Pin == GPIO_PIN_2){ //Al pulsar el boton rojo se baja de mapa
+	if (GPIO_Pin == GPIO_PIN_2){ //Al pulsar el boton amarillo se baja de mapa
 		buttonDOWN = 1;
 		buttonUP = 0;
 		buttonCTRL = 0;
@@ -258,10 +258,6 @@ void RECEIVE_MESSAGE(){
 	}
 }
 
-//PONER EN CADA SITIO QUE MENSJAE SE QUEDA ACTIVO AL FINAL
-//PONER LAS COSAS SEGUN CANOPEN
-//CAMBIAR LOS NOMBRES DE LAS COSAS
-
 uint16_t combineBytes(uint8_t highByte, uint8_t lowByte) {
     return ((uint16_t)highByte << 8) | lowByte; //Desplaza los 2 primeros bytes a su posición correcta y añade los 2 últimos bytes
 }
@@ -300,17 +296,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
 	}
 	if(htim->Instance==TIM3){
-		//if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_3)){
 		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3)){
 			LC = 1;
-	    	//HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_9);
 		} else {
 			if (TC == 0){
 				TC = 1;
 			} else {
 				TC = 0;
 			}
-			//HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_10);
 		}
 		HAL_TIM_Base_Stop_IT(&htim3);
 		SEND_MESSAGE();
@@ -320,15 +313,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){ //Heartbeat
 	}
 }
 
-
-/*void check_CAN_error_status(void) {
-    uint32_t error = HAL_CAN_GetError(&hcan1);
-    if (error != HAL_CAN_ERROR_NONE) {
-        for(int i = 0; i <10; i++){
-        	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-        }
-    }
-}*/
 
 /* USER CODE END 0 */
 
@@ -391,16 +375,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	 // check_CAN_error_status();
-
-	  //Estas 4 lineas para comprobar que funciona el bus - mensajes continuos
-/*	  TxData[0] = 100; //ms delay
-	  TxData[1] = 8; //loop rep
-	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-	  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
-	  HAL_Delay(1000);
-*/
-
 	  if (buttonUP==1 || buttonDOWN==1){
 		  MAPChange();
 	  }

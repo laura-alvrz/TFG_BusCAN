@@ -45,7 +45,6 @@ DMA_HandleTypeDef hdma_adc1;
 
 CAN_HandleTypeDef hcan1;
 
-TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
@@ -57,7 +56,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_CAN1_Init(void);
-static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
@@ -220,20 +218,6 @@ void splitBytes(uint16_t value, uint8_t* highByte, uint8_t* lowByte) {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
-	/*if(htim->Instance==TIM2){
-	    TxHeader.DLC = 1; //Data length
-	    TxHeader.IDE = CAN_ID_STD;
-	    TxHeader.RTR = CAN_RTR_DATA;
-	    TxHeader.StdId = 0x701; //ID (identificador del enviador)
-
-	    TxData[0] = 0x01;
-
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_8); //Heartbeat
-
-	    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox[1]);
-	    HAL_TIM_Base_Stop_IT(&htim2);
-	}*/
-
 	if(htim->Instance==TIM3){
 		splitBytes(rpm, &highByte, &lowByte);
 
@@ -249,15 +233,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){// Heartbeat
 	}
 }
 
-//QUITAR EL TEMPORIZADOR
-
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir mensajes del bus //<-- REVISAR hcan o hcan1
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, RxData);
 	if (RxHeader.DLC == 2){
 		RECEIVE_MESSAGE();
 	}
 	if (RxHeader.StdId == 0x702){ //Heartbeat
-		//HAL_TIM_Base_Start_IT(&htim2);
 	    TxHeader.DLC = 1; //Data length
 	    TxHeader.IDE = CAN_ID_STD;
 	    TxHeader.RTR = CAN_RTR_DATA;
@@ -271,52 +252,7 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan){ //Para recibir 
 	}
 }
 
-/*
-int debouncer(volatile int* button_int, GPIO_TypeDef* GPIO_port, uint16_t GPIO_number){ //Para usar el PA0 (se puede sustituir por potenciometro)
-	static uint8_t button_count=0;
-	static int counter=0;
 
-	if (*button_int==1){
-		if (button_count==0) {
-			counter=HAL_GetTick();
-			button_count++;
-		}
-		if (HAL_GetTick()-counter>=20){
-			counter=HAL_GetTick();
-			if (HAL_GPIO_ReadPin(GPIO_port, GPIO_number)!=1){
-				button_count=1;
-			}
-			else{
-				button_count++;
-			}
-			if (button_count==4){ //Periodo antirebotes
-				button_count=0;
-				*button_int=0;
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
-
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){ //Es como si hubiera un actuador (se puede sustituir por potenciometro)
-	if (GPIO_Pin == GPIO_PIN_0){ //Al pulsar se desactiva el launch control
-		buttonCTRL=1;
-	}
-}
-*/
-
-
-
-/*void check_CAN_error_status(void) {
-    uint32_t error = HAL_CAN_GetError(&hcan1);
-    if (error != HAL_CAN_ERROR_NONE) {
-        for(int i = 0; i <10; i++){
-        	HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
-        }
-    }
-}*/
 /* USER CODE END 0 */
 
 /**
@@ -349,7 +285,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_CAN1_Init();
-  MX_TIM2_Init();
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
@@ -384,15 +319,6 @@ int main(void)
 			SEND_MESSAGE();
 		}
 	  }
-/*	  if (buttonCTRL==1){
-		  if (debouncer(&buttonCTRL, GPIOA, GPIO_PIN_0)){
-			  LC = 0;
-			  SEND_MESSAGE();
-		  }
-	  }
-*/
-	 // check_CAN_error_status();
-
   }
   /* USER CODE END 3 */
 }
@@ -542,53 +468,6 @@ static void MX_CAN1_Init(void)
     HAL_CAN_ConfigFilter(&hcan1, &canfilterconfig);
 
   /* USER CODE END CAN1_Init 2 */
-
-}
-
-/**
-  * @brief TIM2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM2_Init(void)
-{
-
-  /* USER CODE BEGIN TIM2_Init 0 */
-
-  /* USER CODE END TIM2_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM2_Init 1 */
-
-  /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 42000;
-  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 2000;
-  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM2_Init 2 */
-  // Limpiar cualquier interrupción pendiente
-  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_IT_UPDATE);
-
-  /* USER CODE END TIM2_Init 2 */
 
 }
 
